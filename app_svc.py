@@ -345,7 +345,7 @@ def voice_conversion(source, target, diffusion_steps, length_adjust, inference_c
                 output_wave = vc_wave[0].cpu().numpy()
                 generated_wave_chunks.append(output_wave)
                 output_wave = output_wave.astype(np.float32)
-                sf.write("output.wav", np.concatenate(generated_wave_chunks), sr, format="WAV", subtype="FLOAT")
+                sf.write("output.wav", np.concatenate(generated_wave_chunks).astype(np.float32), sr, format="WAV", subtype="FLOAT")
                 yield "output.wav", "output.wav"  # 파일 경로 반환
                 break
             output_wave = vc_wave[0, :-overlap_wave_len].cpu().numpy()
@@ -362,8 +362,8 @@ def voice_conversion(source, target, diffusion_steps, length_adjust, inference_c
             processed_frames += vc_target.size(2) - overlap_frame_len
             # float32 데이터 유지
             output_wave = output_wave.astype(np.float32)
-            sf.write("output.wav", np.concatenate(generated_wave_chunks), sr, format="WAV", subtype="FLOAT")
-            yield "output.wav", (sr, np.concatenate(generated_wave_chunks))
+            sf.write("output.wav", np.concatenate(generated_wave_chunks).astype(np.float32), sr, format="WAV", subtype="FLOAT")
+            yield "output.wav", (sr, np.concatenate(generated_wave_chunks).astype(np.float32))
             break
         else:
             output_wave = crossfade(previous_chunk.cpu().numpy(), vc_wave[0, :-overlap_wave_len].cpu().numpy(), overlap_wave_len)
