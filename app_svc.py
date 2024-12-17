@@ -10,6 +10,7 @@ from hf_utils import load_custom_model_from_hf
 import numpy as np
 from pydub import AudioSegment
 import argparse
+import soundfile as sf
 # Load model and configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -343,45 +344,36 @@ def voice_conversion(source, target, diffusion_steps, length_adjust, inference_c
             if is_last_chunk:
                 output_wave = vc_wave[0].cpu().numpy()
                 generated_wave_chunks.append(output_wave)
-                output_wave = (output_wave * 32768.0).astype(np.int16)
-                mp3_bytes = AudioSegment(
-                    output_wave.tobytes(), frame_rate=sr,
-                    sample_width=output_wave.dtype.itemsize, channels=1
-                ).export(format="mp3", bitrate=bitrate).read()
-                yield mp3_bytes, (sr, np.concatenate(generated_wave_chunks))
+                output_wave = output_wave.astype(np.float32)
+                sf.write("output.wav", np.concatenate(generated_wave_chunks), sr, format="WAV", subtype="FLOAT")
+                yield "output.wav", "output.wav"  # 파일 경로 반환
                 break
             output_wave = vc_wave[0, :-overlap_wave_len].cpu().numpy()
             generated_wave_chunks.append(output_wave)
             previous_chunk = vc_wave[0, -overlap_wave_len:]
             processed_frames += vc_target.size(2) - overlap_frame_len
-            output_wave = (output_wave * 32768.0).astype(np.int16)
-            mp3_bytes = AudioSegment(
-                output_wave.tobytes(), frame_rate=sr,
-                sample_width=output_wave.dtype.itemsize, channels=1
-            ).export(format="mp3", bitrate=bitrate).read()
-            yield mp3_bytes, None
+            # float32 데이터 유지
+            output_wave = output_wave.astype(np.float32)
+            sf.write("chunk_output.wav", output_wave, sr, format="WAV", subtype="FLOAT")  # 각 청크를 저장 (옵션)
+            yield None, None  # 청크의 중간 처리 결과 반환
         elif is_last_chunk:
             output_wave = crossfade(previous_chunk.cpu().numpy(), vc_wave[0].cpu().numpy(), overlap_wave_len)
             generated_wave_chunks.append(output_wave)
             processed_frames += vc_target.size(2) - overlap_frame_len
-            output_wave = (output_wave * 32768.0).astype(np.int16)
-            mp3_bytes = AudioSegment(
-                output_wave.tobytes(), frame_rate=sr,
-                sample_width=output_wave.dtype.itemsize, channels=1
-            ).export(format="mp3", bitrate=bitrate).read()
-            yield mp3_bytes, (sr, np.concatenate(generated_wave_chunks))
+            # float32 데이터 유지
+            output_wave = output_wave.astype(np.float32)
+            sf.write("output.wav", np.concatenate(generated_wave_chunks), sr, format="WAV", subtype="FLOAT")
+            yield "output.wav", (sr, np.concatenate(generated_wave_chunks))
             break
         else:
             output_wave = crossfade(previous_chunk.cpu().numpy(), vc_wave[0, :-overlap_wave_len].cpu().numpy(), overlap_wave_len)
             generated_wave_chunks.append(output_wave)
             previous_chunk = vc_wave[0, -overlap_wave_len:]
             processed_frames += vc_target.size(2) - overlap_frame_len
-            output_wave = (output_wave * 32768.0).astype(np.int16)
-            mp3_bytes = AudioSegment(
-                output_wave.tobytes(), frame_rate=sr,
-                sample_width=output_wave.dtype.itemsize, channels=1
-            ).export(format="mp3", bitrate=bitrate).read()
-            yield mp3_bytes, None
+             # float32 데이터 유지
+            output_wave = output_wave.astype(np.float32)
+            sf.write("chunk_output.wav", output_wave, sr, format="WAV", subtype="FLOAT")  # 각 청크를 저장 (옵션)
+            yield None, None  # 청크의 중간 처리 결과 반환
 
 
 def main(args):
@@ -415,8 +407,8 @@ def main(args):
                  "examples/reference/trump_0.wav", 50, 1.0, 0.7, False, -12],
                 ]
 
-    outputs = [gr.Audio(label="Stream Output Audio / 流式输出", streaming=True, format='mp3'),
-               gr.Audio(label="Full Output Audio / 完整输出", streaming=False, format='wav')]
+    outputs = [gr.Audio(label="Stream Output Audio / 流式输出", streaming=False, format='wav',type="filepath"),
+               gr.Audio(label="Full Output Audio / 完整输出", streaming=False, format='wav',type="filepath")]
 
     gr.Interface(fn=voice_conversion,
                  description=description,
